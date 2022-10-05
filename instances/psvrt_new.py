@@ -25,6 +25,7 @@ class n_sd_k(feeders.Feeder):
         k=2,
         num_item_pixel_values=2,
         match_num_black_pixels=False,
+        lr_mirror_is_same=False,
         organization="raw",
         display=False,
     ):
@@ -37,6 +38,7 @@ class n_sd_k(feeders.Feeder):
         self.box_extent = box_extent
         self.num_item_pixel_values = num_item_pixel_values
         self.match_num_black_pixels = match_num_black_pixels
+        self.lr_mirror_is_same = lr_mirror_is_same
 
         self.display = display
         self.k = k
@@ -88,6 +90,7 @@ class n_sd_k(feeders.Feeder):
                     self.n * self.k,
                     self.num_item_pixel_values,
                     match_num_black_pixels=self.match_num_black_pixels,
+                    lr_mirror_is_same=self.lr_mirror_is_same,
                     list_existing=items_list,
                     force_different=True,
                 )
@@ -111,7 +114,7 @@ class n_sd_k(feeders.Feeder):
                         force_different=True,
                     )
                     for extra_copy in range(self.k - 1):
-                        items_list.append(items_list[-1])
+                        items_list.append(random_lr_mirror(items_list[-1]))
 
             # render
             image = self.render(items_list, positions_list, label_batch[iimage])
@@ -207,6 +210,14 @@ class n_sd_k(feeders.Feeder):
         return image
 
 
+def random_lr_mirror(item):
+    if np.random.randint(low=0, high=2) == 1:
+        item = np.fliplr(item)
+    # if np.random.randint(low=0, high=2) == 1:
+    #     item = np.flipud(item)
+    return item
+
+
 def sample_positions_naive(box_extent, item_size, num_items, list_existing=None):
     for pp in range(num_items - len(list_existing)):
         while True:
@@ -234,6 +245,7 @@ def sample_bitpatterns_naive(
     num_items,
     num_item_pixel_values,
     match_num_black_pixels=False,
+    lr_mirror_is_same=False,
     list_existing=None,
     force_different=True,
 ):
@@ -268,13 +280,20 @@ def sample_bitpatterns_naive(
 
             new_item = np.power(-1, new_item_sign_exponents) * new_item_values
             for old_item in list_existing:
-                if match_num_black_pixels and np.all(old_item == new_item):
+                print(pp)
+                if np.all(
+                    old_item == new_item
+                ):  # if new_item is same as a previous item, try again
                     identity_flag = 0
+                    print("identical")
                     break
-                # if force_different & (np.abs(np.sum(new_item - old_item)) == 0):
-                #     identity_flag = 1
+                if lr_mirror_is_same and np.all(
+                    old_item == np.fliplr(new_item)
+                ):  # if new_item is left-right mirror reversed version of a previous item, try again
+                    identity_flag = 0
+                    print("lr mirror")
+                    break
 
-                #     break
             if identity_flag == 0:
                 continue
             else:
@@ -287,8 +306,8 @@ def sample_bitpatterns_naive(
 if __name__ == "__main__":
     # How to use the n_sd_k class provided:
     img_size = [30, 30]
-    obj_size = [4, 4]
-    n_objs = 4
+    obj_size = [2, 2]
+    n_objs = 3
     batch_size = 1
     sd_generator = n_sd_k(img_size + [1], batch_size=batch_size)
     sd_generator.initialize_vars(
@@ -298,6 +317,7 @@ if __name__ == "__main__":
         k=n_objs,
         num_item_pixel_values=1,
         match_num_black_pixels=True,
+        lr_mirror_is_same=True,
         organization="raw",
         display=True,
     )
